@@ -1,0 +1,19 @@
+{
+  "name": "editor-3d-colaborativo",
+  "version": "2.8.0",
+  "private": true,
+  "description": "Editor 3D colaborativo en tiempo real (Web, Escritorio y Móvil)",
+  "scripts": {
+    "client:dev": "python3 -m http.server 5500 --directory client",
+    "server:start": "npm --prefix server start",
+    "server:test": "npm --prefix server test",
+    "cap:sync": "cap sync",
+    "cap:build:apk": "cd android && ./gradlew assembleDebug",
+    "cap:open:android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/core": "^6.2.0"
+  }
+}

@@ -1,0 +1,6 @@
+.git
+**/node_modules
+**/.env
+**/.auth-secret
+**/npm-debug.log
+**/.DS_Store

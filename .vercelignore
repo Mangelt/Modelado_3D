@@ -1,0 +1,7 @@
+# Ignorar carpetas del backend, android y pruebas al desplegar en Vercel
+server/
+android/
+node_modules/
+k8s/
+docs/
+compose.yaml

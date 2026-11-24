@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#1e1e1e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <title>Editor 3D Colaborativo</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Segoe UI,Tahoma,sans-serif;background:#1e1e1e;color:#ddd;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+    button,input{font:inherit}
+    #toolbar{background:#252526;min-height:48px;display:flex;align-items:center;padding:7px 12px;border-bottom:1px solid #383838;gap:7px;flex-wrap:wrap}
+    .btn{background:#3c3c3c;color:#fff;border:1px solid #555;padding:7px 10px;border-radius:4px;cursor:pointer;font-size:12px}
+    .btn:hover{background:#505050}.btn:disabled{opacity:.4;cursor:not-allowed}
+    .btn-danger{background:#8f3029}.btn-primary{background:#075985}
+    .input-field{background:#333;color:#fff;border:1px solid #555;padding:7px;border-radius:4px;width:112px;font-size:12px}
+    select.input-field{cursor:pointer;width:104px}
+    #element-tools{margin-top:14px;padding-top:9px;border-top:1px solid #444}
+    #element-tools p{margin:7px 0;color:#bbb;line-height:1.4;overflow-wrap:anywhere}
+    #element-help{font-size:11px;color:#999}
+    #btn-element-lock{width:100%;margin-top:8px;background:#075985}
+    #geometry-edit-tools{margin-top:12px;padding-top:9px;border-top:1px solid #444}
+    #geometry-edit-tools p{margin:7px 0;color:#aaa;line-height:1.4}
+    #geometry-edit-tools .control-group{margin-top:9px;margin-bottom:10px}
+    #geometry-edit-tools input[type=range]{width:100%;accent-color:#f0b45b}
+    #btn-apply-geometry{width:100%;margin-top:4px;background:#8a5a12}
+    #connection-status{margin-left:auto;font-size:12px;color:#ff7777;white-space:nowrap}
+    #latency-status{font-size:11px;color:#9fc7e8;white-space:nowrap;padding:0 7px}
+    #main-container{display:flex;flex:1;min-height:0}
+    #sidebar-left{width:225px;min-width:190px;background:#252526;border-right:1px solid #383838;display:flex;flex-direction:column}
+    .sidebar-section{padding:11px;overflow:auto;border-bottom:1px solid #383838;min-height:0}
+    .objects-section{flex:1}.history-section{height:38%;min-height:130px}
+    .panel-header{font-weight:700;margin-bottom:9px;text-transform:uppercase;font-size:11px;color:#aaa;letter-spacing:.5px}
+    #outliner,#activity-log{list-style:none}
+    #outliner li{padding:7px 9px;margin-bottom:4px;background:#303030;border-radius:4px;cursor:pointer;border:1px solid transparent;font-size:12px;display:flex;justify-content:space-between}
+    #outliner li:hover{background:#3b3b3b}#outliner li.selected{background:#094771;border-color:#168bd2}
+    #activity-log li{font-size:11px;color:#aaa;margin-bottom:7px;border-left:2px solid #168bd2;padding-left:7px;overflow-wrap:anywhere}
+    #viewport-container{flex:1;min-width:0;position:relative;background:#111}
+    #canvas3d{width:100%;height:100%;display:block;touch-action:none}
+    #viewport-help{position:absolute;left:12px;bottom:10px;background:#202020c9;color:#aaa;padding:7px 9px;border-radius:4px;font-size:11px;pointer-events:none}
+    #sidebar-right{width:260px;min-width:235px;background:#252526;border-left:1px solid #383838;padding:12px;overflow-y:auto;font-size:12px}
+    .status-badge{display:inline-block;padding:3px 7px;border-radius:4px;font-size:10px;background:#555;color:#fff;font-weight:700}
+    .control-group{margin-bottom:10px}.control-group label{display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;color:#bbb}
+    .control-group input[type=range]{width:100%;accent-color:#168bd2}
+    .control-group input[type=color]{width:100%;height:32px;border:0;background:transparent;cursor:pointer}
+    .section-title{margin:14px 0 8px;padding-top:9px;border-top:1px solid #444;color:#aaa;font-size:11px;font-weight:bold;text-transform:uppercase}
+    #lbl-id{overflow-wrap:anywhere}#lock-owner{color:#f0b45b;font-size:11px;margin:6px 0}
+    .toolbar-group{display:flex;align-items:center;gap:5px}
+    .toolbar-label{font-size:11px;color:#bbb}
+    #toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);padding:8px 12px;background:#333;border:1px solid #555;border-radius:5px;font-size:12px;display:none;z-index:3}
+    #auth-overlay{position:fixed;inset:0;background:#101216eF;display:flex;align-items:center;justify-content:center;padding:20px;z-index:20}
+    .auth-card{width:min(420px,100%);background:#252526;border:1px solid #454545;border-radius:12px;padding:26px;box-shadow:0 18px 60px #0009}
+    .auth-card h1{font-size:21px;margin-bottom:8px;color:#f4f4f4}.auth-card p{font-size:13px;color:#aaa;line-height:1.5;margin-bottom:17px}
+    .auth-card label{display:block;font-size:12px;color:#ccc;margin:12px 0 6px}.auth-card input{width:100%;background:#171717;color:#fff;border:1px solid #555;border-radius:5px;padding:11px;font-size:14px}
+    .auth-actions{display:flex;gap:8px;margin-top:18px}.auth-actions button{flex:1;padding:10px 8px;font-size:13px}
+    #auth-message{min-height:20px;margin:14px 0 0;color:#ffbf70;font-size:12px}#btn-logout{background:#60302b}
+    #history-dialog{width:min(760px,calc(100vw - 28px));max-height:min(82vh,760px);margin:auto;padding:0;border:1px solid #555;border-radius:10px;background:#252526;color:#ddd;box-shadow:0 20px 70px #000b}
+    #history-dialog::backdrop{background:#050608c9}
+    .history-dialog-inner{display:flex;flex-direction:column;max-height:min(82vh,760px)}
+    .history-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid #444}
+    .history-dialog-header h2{font-size:16px;color:#f3f3f3}
+    #history-status{padding:10px 18px;color:#aaa;font-size:12px;min-height:34px}
+    #history-events{list-style:none;overflow:auto;padding:0 14px 14px;min-height:90px;max-height:38vh}
+    .history-event{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px;margin-bottom:7px;background:#303030;border:1px solid #424242;border-radius:6px}
+    .history-event.selected{border-color:#168bd2;background:#12334a}
+    .history-event-main{min-width:0;flex:1}.history-event-title{font-weight:600;font-size:12px;overflow-wrap:anywhere}.history-event-meta{font-size:11px;color:#aaa;margin-top:4px;overflow-wrap:anywhere}
+    .history-event-actions{display:flex;gap:6px;flex-wrap:wrap}.history-event-actions .btn{white-space:nowrap}
+    #history-load-more{margin:0 18px 12px;align-self:center}
+    #history-preview{margin:0 18px 14px;padding:12px;background:#1b1b1b;border:1px solid #444;border-radius:6px}
+    #history-preview h3{font-size:13px;margin-bottom:7px}#history-preview p{font-size:12px;color:#bbb;margin-bottom:8px;line-height:1.45}
+    #history-preview ul{margin:0 0 10px 18px;max-height:100px;overflow:auto;font-size:11px;color:#aaa}
+    .history-dialog-footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #444}
+    .btn-mobile-only{display:none}
+    .sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:22;opacity:0;transition:opacity .25s ease;pointer-events:none}
+    .sidebar-backdrop.active{display:block;opacity:1;pointer-events:auto}
+    .btn-close-drawer{display:none;position:absolute;top:8px;right:10px;background:#333;color:#ccc;border:1px solid #555;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:12px;z-index:10}
+    .btn-close-drawer:hover{background:#454545;color:#fff}
+    @media(max-width:850px){#sidebar-left{width:180px}#sidebar-right{width:220px}.input-field{width:90px}}
+    @media(max-width:768px){
+      .btn-mobile-only{display:inline-flex;align-items:center;justify-content:center}
+      .btn-close-drawer{display:inline-block}
+      #toolbar{
+        flex-wrap:nowrap;
+        overflow-x:auto;
+        -webkit-overflow-scrolling:touch;
+        padding:6px 8px;
+        gap:5px;
+      }
+      .toolbar-group{flex-shrink:0}
+      #connection-status,#latency-status{display:none}
+      #sidebar-left,#sidebar-right{
+        position:fixed;
+        top:48px;
+        bottom:0;
+        z-index:25;
+        width:min(320px,84vw);
+        box-shadow:0 0 30px rgba(0,0,0,.85);
+        transition:transform .28s cubic-bezier(.4,0,.2,1);
+      }
+      #sidebar-left{
+        left:0;
+        transform:translateX(-105%);
+      }
+      #sidebar-left.mobile-open{
+        transform:translateX(0);
+      }
+      #sidebar-right{
+        right:0;
+        transform:translateX(105%);
+      }
+      #sidebar-right.mobile-open{
+        transform:translateX(0);
+      }
+      #viewport-container{
+        width:100%;
+        height:100%;
+      }
+      #viewport-help{
+        bottom:6px;
+        left:6px;
+        right:6px;
+        font-size:10px;
+        text-align:center;
+      }
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="toolbar">
+    <div class="toolbar-group">
+      <button class="btn btn-mobile-only" id="btn-toggle-left" type="button" title="Objetos y actividad">☰ Objetos</button>
+      <button class="btn btn-mobile-only" id="btn-toggle-right" type="button" title="Propiedades">⚙ Propiedades</button>
+      <button class="btn btn-primary" id="btn-add-cube">+ Cubo</button>
+      <button class="btn" id="btn-add-sphere">+ Esfera</button>
+      <button class="btn" id="btn-add-cylinder">+ Cilindro</button>
+      <button class="btn" id="btn-duplicate" disabled>Duplicar</button>
+      <button class="btn btn-danger" id="btn-delete" disabled>Eliminar</button>
+    </div>
+    <div class="toolbar-group">
+      <span class="toolbar-label">Sala</span>
+      <input type="text" id="txt-room" class="input-field" value="equipo-1" maxlength="32" pattern="[a-zA-Z0-9_-]+">
+      <span class="toolbar-label">Usuario</span>
+      <input type="text" id="txt-username" class="input-field" value="Sin sesión" maxlength="24" readonly aria-label="Usuario autenticado">
+      <button class="btn" id="btn-join-room">Conectar</button>
+      <button class="btn" id="btn-logout" title="Cerrar sesión">Salir</button>
+      <span class="toolbar-label">Modo</span>
+      <select id="selection-mode" class="input-field" aria-label="Modo de selección">
+        <option value="objeto">Objeto</option>
+        <option value="cara">Cara</option>
+        <option value="vertice">Vértice</option>
+      </select>
+    </div>
+    <div class="toolbar-group">
+      <button class="btn" id="btn-export">Exportar JSON</button>
+      <button class="btn" id="btn-import">Importar JSON</button>
+      <button class="btn" id="btn-undo" title="Deshacer (Ctrl+Z)" disabled>↶ Deshacer</button>
+      <button class="btn" id="btn-redo" title="Rehacer (Ctrl+Y)" disabled>↷ Rehacer</button>
+      <button class="btn" id="btn-history">Historial</button>
+      <input type="file" id="file-import" accept="application/json,.json" hidden>
+      <button class="btn" id="btn-grid">Ocultar cuadrícula</button>
+      <button class="btn" id="btn-camera">Centrar cámara</button>
+      <button class="btn" id="btn-server-config" type="button" title="Configurar conexión del servidor">⚙ Red</button>
+    </div>
+    <span id="connection-status">Desconectado</span>
+    <span id="latency-status" title="Tiempo aproximado desde que llega un cambio al navegador hasta el siguiente ciclo de renderizado; no incluye la red.">Frame cliente: -- ms</span>
+  </div>
+
+  <section id="auth-overlay" aria-label="Acceso al editor">
+    <div class="auth-card">
+      <h1>Editor 3D colaborativo</h1>
+      <p>Inicia sesión para entrar a una sala y colaborar con otros diseñadores. Si todavía no tienes cuenta, puedes crear una aquí.</p>
+      <form id="auth-form">
+        <label for="auth-username">Nombre de usuario</label>
+        <input type="text" id="auth-username" autocomplete="username" minlength="3" maxlength="24" required placeholder="Ej. Miguel">
+        <label for="auth-password">Contraseña</label>
+        <input type="password" id="auth-password" autocomplete="current-password" minlength="8" maxlength="128" required placeholder="Mínimo 8 caracteres">
+        <div class="auth-actions">
+          <button class="btn btn-primary" id="btn-login" type="submit">Iniciar sesión</button>
+          <button class="btn" id="btn-register" type="button">Crear cuenta</button>
+        </div>
+      </form>
+      <div id="auth-message" role="status" aria-live="polite"></div>
+      <div style="margin-top:14px;border-top:1px solid #3c3c3c;padding-top:10px">
+        <details id="details-server-cfg">
+          <summary style="font-size:12px;color:#9fc7e8;cursor:pointer">⚙ Servidor backend (para móvil o Vercel)</summary>
+          <div style="margin-top:8px">
+            <label for="cfg-server-url" style="font-size:11px;color:#aaa;display:block;margin-bottom:4px">URL del Backend (REST y WebSocket):</label>
+            <input type="url" id="cfg-server-url" placeholder="Ej. http://192.168.1.50:8080 o https://tu-backend.com" style="width:100%;background:#181818;border:1px solid #555;color:#fff;border-radius:4px;padding:8px;font-size:12px">
+            <span style="font-size:10px;color:#777;display:block;margin-top:4px">En red local ingresa la IP de tu PC. Si lo dejas vacío, usa el servidor local por defecto.</span>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+  <div id="main-container">
+    <aside id="sidebar-left">
+      <button class="btn-close-drawer" id="btn-close-sidebar-left" type="button" aria-label="Cerrar panel">✕</button>
+      <section class="sidebar-section objects-section">
+        <div class="panel-header">Elementos del modelo</div>
+        <ul id="outliner"></ul>
+      </section>
+      <section class="sidebar-section history-section">
+        <div class="panel-header">Actividad reciente</div>
+        <ul id="activity-log"><li>Sistema iniciado.</li></ul>
+      </section>
+    </aside>
+    <main id="viewport-container">
+      <canvas id="canvas3d"></canvas>
+      <div id="toast" role="status" aria-live="polite"></div>
+      <div id="viewport-help">Clic para seleccionar · Arrastrar para orbitar · Rueda para zoom</div>
+    </main>
+    <aside id="sidebar-right">
+      <button class="btn-close-drawer" id="btn-close-sidebar-right" type="button" aria-label="Cerrar panel">✕</button>
+      <div class="panel-header">Propiedades del objeto</div>
+      <p style="margin-bottom:7px">ID: <strong id="lbl-id">Ninguno</strong></p>
+      <p>Bloqueo: <span class="status-badge" id="lbl-status">Libre</span></p>
+      <p id="lock-owner"></p>
+      <section id="element-tools">
+        <div class="section-title" style="margin-top:0">Bloqueo de subelemento</div>
+        <p>Elemento: <strong id="element-info">Modo objeto</strong></p>
+        <p>Estado: <span class="status-badge" id="element-lock-status">No aplica</span></p>
+        <button class="btn" id="btn-element-lock" disabled>Iniciar edición</button>
+        <p id="element-help">Cambia a Cara o Vértice para seleccionar un subelemento del modelo.</p>
+      </section>
+      <section id="geometry-edit-tools">
+        <div class="section-title" style="margin-top:0">Editar geometría</div>
+        <p id="geometry-edit-status">Selecciona una cara o vértice.</p>
+        <div class="control-group"><label for="element-dx">Desplazamiento X <output id="val-element-dx">0.00</output></label><input type="range" id="element-dx" min="-2" max="2" step="0.05" value="0" disabled></div>
+        <div class="control-group"><label for="element-dy">Desplazamiento Y <output id="val-element-dy">0.00</output></label><input type="range" id="element-dy" min="-2" max="2" step="0.05" value="0" disabled></div>
+        <div class="control-group"><label for="element-dz">Desplazamiento Z <output id="val-element-dz">0.00</output></label><input type="range" id="element-dz" min="-2" max="2" step="0.05" value="0" disabled></div>
+        <button class="btn" id="btn-apply-geometry" disabled>Aplicar desplazamiento</button>
+        <p>Los valores representan el desplazamiento respecto a la geometría original. Debes iniciar la edición antes de aplicarlos.</p>
+      </section>
+      <div class="control-group" style="margin-top:12px">
+        <label for="obj-color">Color del material</label>
+        <input type="color" id="obj-color" value="#38bdf8" disabled>
+      </div>
+      <div class="section-title">Posición</div>
+      <div class="control-group"><label for="pos-x">X <output id="val-pos-x">0.0</output></label><input type="range" id="pos-x" min="-20" max="20" step="0.1" value="0" disabled></div>
+      <div class="control-group"><label for="pos-y">Y <output id="val-pos-y">0.5</output></label><input type="range" id="pos-y" min="-20" max="20" step="0.1" value="0.5" disabled></div>
+      <div class="control-group"><label for="pos-z">Z <output id="val-pos-z">0.0</output></label><input type="range" id="pos-z" min="-20" max="20" step="0.1" value="0" disabled></div>
+      <div class="section-title">Rotación (radianes)</div>
+      <div class="control-group"><label for="rot-x">X <output id="val-rot-x">0.0</output></label><input type="range" id="rot-x" min="-6.28" max="6.28" step="0.1" value="0" disabled></div>
+      <div class="control-group"><label for="rot-y">Y <output id="val-rot-y">0.0</output></label><input type="range" id="rot-y" min="-6.28" max="6.28" step="0.1" value="0" disabled></div>
+      <div class="control-group"><label for="rot-z">Z <output id="val-rot-z">0.0</output></label><input type="range" id="rot-z" min="-6.28" max="6.28" step="0.1" value="0" disabled></div>
+      <div class="section-title">Escala</div>
+      <div class="control-group"><label for="scale-x">X <output id="val-scale-x">1.0</output></label><input type="range" id="scale-x" min="0.2" max="3" step="0.1" value="1" disabled></div>
+      <div class="control-group"><label for="scale-y">Y <output id="val-scale-y">1.0</output></label><input type="range" id="scale-y" min="0.2" max="3" step="0.1" value="1" disabled></div>
+      <div class="control-group"><label for="scale-z">Z <output id="val-scale-z">1.0</output></label><input type="range" id="scale-z" min="0.2" max="3" step="0.1" value="1" disabled></div>
+    </aside>
+  </div>
+  <dialog id="history-dialog" aria-labelledby="history-title">
+    <div class="history-dialog-inner">
+      <div class="history-dialog-header">
+        <h2 id="history-title">Historial del modelo</h2>
+        <button class="btn" id="btn-history-close" type="button">Cerrar</button>
+      </div>
+      <p id="history-status" role="status" aria-live="polite">Cargando historial…</p>
+      <ol id="history-events" aria-label="Eventos de la sala"></ol>
+      <button class="btn" id="history-load-more" type="button" hidden> Cargar eventos anteriores </button>
+      <section id="history-preview" hidden>
+        <h3 id="history-preview-title">Versión seleccionada</h3>
+        <p id="history-preview-summary"></p>
+        <ul id="history-preview-objects"></ul>
+        <button class="btn btn-primary" id="btn-history-restore" type="button" disabled>Restaurar esta versión</button>
+      </section>
+      <div class="history-dialog-footer">
+        <button class="btn" id="btn-history-refresh" type="button">Actualizar historial</button>
+        <button class="btn" id="btn-history-close-footer" type="button">Listo</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="server-config-dialog" style="margin:auto;padding:20px;border:1px solid #555;border-radius:10px;background:#252526;color:#ddd;max-width:92vw;width:400px;box-shadow:0 18px 50px rgba(0,0,0,0.85)">
+    <h3 style="margin-bottom:10px;font-size:15px;color:#fff">Configuración de Red y Servidor</h3>
+    <p style="font-size:12px;color:#bbb;margin-bottom:14px;line-height:1.4">Permite conectar la app móvil o el cliente web en Vercel con el backend en tiempo real.</p>
+    <label for="dialog-server-url" style="font-size:11px;color:#ccc;display:block;margin-bottom:6px">URL del Servidor Backend:</label>
+    <input type="url" id="dialog-server-url" placeholder="http://192.168.1.XX:8080 o https://..." style="width:100%;padding:9px;background:#181818;border:1px solid #555;border-radius:5px;color:#fff;font-size:13px;margin-bottom:6px">
+    <small style="font-size:11px;color:#888;display:block;margin-bottom:16px">Si estás en tu teléfono, ingresa la IP de tu computadora (ej: http://192.168.1.50:8080). Vacío = local.</small>
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn" id="btn-server-cancel" type="button">Cancelar</button>
+      <button class="btn btn-primary" id="btn-server-save" type="button">Guardar y Reconectar</button>
+    </div>
+  </dialog>
+  <script src="app.js"></script>
+</body>
+</html>

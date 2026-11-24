@@ -1,0 +1,9 @@
+{
+  "appId": "com.editor3d.colaborativo",
+  "appName": "Editor 3D Colaborativo",
+  "webDir": "client",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
+}

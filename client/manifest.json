@@ -1,0 +1,18 @@
+{
+  "name": "Editor 3D Colaborativo",
+  "short_name": "Editor 3D",
+  "description": "Editor 3D colaborativo en tiempo real con WebSockets y Three.js",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1e1e1e",
+  "theme_color": "#1e1e1e",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
