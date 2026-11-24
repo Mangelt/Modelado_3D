@@ -8,6 +8,8 @@ let objetoSeleccionado = null;
 let bloqueadoPorMi = false;
 let bloqueoSolicitado = false;
 let cambioPendiente = false;
+let throttleTimerTransformacion = null;
+let deltaPendienteEnvio = null;
 let toastTimer = null;
 let modoSeleccion = 'objeto';
 let elementoSeleccionado = null;
@@ -989,9 +991,29 @@ function aplicarCambios() {
   objetoSeleccionado.scale.set(d.sx,d.sy,d.sz);
   objetoSeleccionado.material.color.set(d.color);
   actualizarEtiquetas();
-  enviar({tipo:'TRANSFORMACION_DELTA',idComponente:objetoSeleccionado.name,delta:d});
+
+  deltaPendienteEnvio = d;
+  if (!throttleTimerTransformacion) {
+    enviar({tipo:'TRANSFORMACION_DELTA',idComponente:objetoSeleccionado.name,delta:d});
+    deltaPendienteEnvio = null;
+    throttleTimerTransformacion = setTimeout(() => {
+      throttleTimerTransformacion = null;
+      if (deltaPendienteEnvio && objetoSeleccionado && bloqueadoPorMi) {
+        enviar({tipo:'TRANSFORMACION_DELTA',idComponente:objetoSeleccionado.name,delta:deltaPendienteEnvio});
+        deltaPendienteEnvio = null;
+      }
+    }, 40);
+  }
 }
 function liberarBloqueo() {
+  if (throttleTimerTransformacion) {
+    clearTimeout(throttleTimerTransformacion);
+    throttleTimerTransformacion = null;
+  }
+  if (deltaPendienteEnvio && objetoSeleccionado && bloqueadoPorMi && conectado()) {
+    enviar({tipo:'TRANSFORMACION_DELTA',idComponente:objetoSeleccionado.name,delta:deltaPendienteEnvio});
+    deltaPendienteEnvio = null;
+  }
   if (bloqueadoPorMi && objetoSeleccionado && conectado()) {
     enviar({tipo:'LIBERAR_BLOQUEO',idComponente:objetoSeleccionado.name});
   }
