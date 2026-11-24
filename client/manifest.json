@@ -4,7 +4,7 @@
   "description": "Editor 3D colaborativo en tiempo real con WebSockets y Three.js",
   "start_url": "./index.html",
   "display": "standalone",
-  "orientation": "any",
+  "orientation": "landscape",
   "background_color": "#1e1e1e",
   "theme_color": "#1e1e1e",
   "icons": [
