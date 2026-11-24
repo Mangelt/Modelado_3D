@@ -15,7 +15,7 @@ const { crearAlmacenBloqueosDistribuidos } = require('./distributed-lock-store')
 const { calcularEstadoHistorial, siguienteAccionHistorial } = require('./history-stack');
 
 const PORT = Number(process.env.PORT) || 8080;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/sistemas_distribuidos_3d';
+const MONGO_URI = process.env.MONGO_URI || process.env.MONGO_URL || process.env.MONGODB_URL || 'mongodb://127.0.0.1:27017/sistemas_distribuidos_3d';
 const MAX_OBJECTS = 200;
 const MAX_HISTORY = 1000;
 const SNAPSHOT_EVERY_EVENTS = 25;
