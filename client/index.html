@@ -18,16 +18,6 @@
     .btn:hover{background:#505050}.btn:disabled{opacity:.4;cursor:not-allowed}
     .btn-danger{background:#8f3029}.btn-primary{background:#075985}
     .input-field{background:#333;color:#fff;border:1px solid #555;padding:7px;border-radius:4px;width:112px;font-size:12px}
-    select.input-field{cursor:pointer;width:104px}
-    #element-tools{margin-top:14px;padding-top:9px;border-top:1px solid #444}
-    #element-tools p{margin:7px 0;color:#bbb;line-height:1.4;overflow-wrap:anywhere}
-    #element-help{font-size:11px;color:#999}
-    #btn-element-lock{width:100%;margin-top:8px;background:#075985}
-    #geometry-edit-tools{margin-top:12px;padding-top:9px;border-top:1px solid #444}
-    #geometry-edit-tools p{margin:7px 0;color:#aaa;line-height:1.4}
-    #geometry-edit-tools .control-group{margin-top:9px;margin-bottom:10px}
-    #geometry-edit-tools input[type=range]{width:100%;accent-color:#f0b45b}
-    #btn-apply-geometry{width:100%;margin-top:4px;background:#8a5a12}
     #connection-status{margin-left:auto;font-size:12px;color:#ff7777;white-space:nowrap}
     #latency-status{font-size:11px;color:#9fc7e8;white-space:nowrap;padding:0 7px}
     #main-container{display:flex;flex:1;min-height:0}
@@ -41,7 +31,6 @@
     #activity-log li{font-size:11px;color:#aaa;margin-bottom:7px;border-left:2px solid #168bd2;padding-left:7px;overflow-wrap:anywhere}
     #viewport-container{flex:1;min-width:0;position:relative;background:#111}
     #canvas3d{width:100%;height:100%;display:block;touch-action:none}
-    #viewport-help{position:absolute;left:12px;bottom:10px;background:#202020c9;color:#aaa;padding:7px 9px;border-radius:4px;font-size:11px;pointer-events:none}
     #sidebar-right{width:260px;min-width:235px;background:#252526;border-left:1px solid #383838;padding:12px;overflow-y:auto;font-size:12px}
     .status-badge{display:inline-block;padding:3px 7px;border-radius:4px;font-size:10px;background:#555;color:#fff;font-weight:700}
     .control-group{margin-bottom:10px}.control-group label{display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;color:#bbb}
@@ -122,13 +111,6 @@
         width:100%;
         height:100%;
       }
-      #viewport-help{
-        bottom:6px;
-        left:6px;
-        right:6px;
-        font-size:10px;
-        text-align:center;
-      }
     }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -138,7 +120,7 @@
   <div id="toolbar">
     <div class="toolbar-group">
       <button class="btn btn-mobile-only" id="btn-toggle-left" type="button" title="Objetos y actividad">☰ Objetos</button>
-      <button class="btn btn-mobile-only" id="btn-toggle-right" type="button" title="Propiedades">⚙ Propiedades</button>
+      <button class="btn btn-mobile-only" id="btn-toggle-right" type="button" title="Posición, rotación, escala y color">✎ Editar</button>
       <button class="btn btn-primary" id="btn-add-cube">+ Cubo</button>
       <button class="btn" id="btn-add-sphere">+ Esfera</button>
       <button class="btn" id="btn-add-cylinder">+ Cilindro</button>
@@ -152,12 +134,6 @@
       <input type="text" id="txt-username" class="input-field" value="Sin sesión" maxlength="24" readonly aria-label="Usuario autenticado">
       <button class="btn" id="btn-join-room">Conectar</button>
       <button class="btn" id="btn-logout" title="Cerrar sesión">Salir</button>
-      <span class="toolbar-label">Modo</span>
-      <select id="selection-mode" class="input-field" aria-label="Modo de selección">
-        <option value="objeto">Objeto</option>
-        <option value="cara">Cara</option>
-        <option value="vertice">Vértice</option>
-      </select>
     </div>
     <div class="toolbar-group">
       <button class="btn" id="btn-export">Exportar JSON</button>
@@ -207,7 +183,6 @@
     <main id="viewport-container">
       <canvas id="canvas3d"></canvas>
       <div id="toast" role="status" aria-live="polite"></div>
-      <div id="viewport-help">Clic para seleccionar · Arrastrar para orbitar · Rueda para zoom</div>
     </main>
     <aside id="sidebar-right">
       <button class="btn-close-drawer" id="btn-close-sidebar-right" type="button" aria-label="Cerrar panel">✕</button>
@@ -215,22 +190,6 @@
       <p style="margin-bottom:7px">ID: <strong id="lbl-id">Ninguno</strong></p>
       <p>Bloqueo: <span class="status-badge" id="lbl-status">Libre</span></p>
       <p id="lock-owner"></p>
-      <section id="element-tools">
-        <div class="section-title" style="margin-top:0">Bloqueo de subelemento</div>
-        <p>Elemento: <strong id="element-info">Modo objeto</strong></p>
-        <p>Estado: <span class="status-badge" id="element-lock-status">No aplica</span></p>
-        <button class="btn" id="btn-element-lock" disabled>Iniciar edición</button>
-        <p id="element-help">Cambia a Cara o Vértice para seleccionar un subelemento del modelo.</p>
-      </section>
-      <section id="geometry-edit-tools">
-        <div class="section-title" style="margin-top:0">Editar geometría</div>
-        <p id="geometry-edit-status">Selecciona una cara o vértice.</p>
-        <div class="control-group"><label for="element-dx">Desplazamiento X <output id="val-element-dx">0.00</output></label><input type="range" id="element-dx" min="-2" max="2" step="0.05" value="0" disabled></div>
-        <div class="control-group"><label for="element-dy">Desplazamiento Y <output id="val-element-dy">0.00</output></label><input type="range" id="element-dy" min="-2" max="2" step="0.05" value="0" disabled></div>
-        <div class="control-group"><label for="element-dz">Desplazamiento Z <output id="val-element-dz">0.00</output></label><input type="range" id="element-dz" min="-2" max="2" step="0.05" value="0" disabled></div>
-        <button class="btn" id="btn-apply-geometry" disabled>Aplicar desplazamiento</button>
-        <p>Los valores representan el desplazamiento respecto a la geometría original. Debes iniciar la edición antes de aplicarlos.</p>
-      </section>
       <div class="control-group" style="margin-top:12px">
         <label for="obj-color">Color del material</label>
         <input type="color" id="obj-color" value="#38bdf8" disabled>

@@ -400,20 +400,9 @@ function seleccionarSubelemento(hit, tipoElemento) {
     ocupadoPor: ''
   };
   resaltarSubelemento(mesh, seleccionado.indicesVisualizacion, tipoElemento);
-  leerDesplazamientoElemento();
   actualizarPanelElemento();
 }
 
-function cambiarModoSeleccion() {
-  limpiarSeleccionElemento(true);
-  modoSeleccion = el('selection-mode').value;
-  el('viewport-help').textContent = modoSeleccion === 'objeto'
-    ? 'Clic para seleccionar · Arrastrar para orbitar · Rueda para zoom'
-    : (modoSeleccion === 'cara'
-      ? 'Modo Cara: clic sobre una cara para seleccionarla · Arrastrar para orbitar'
-      : 'Modo Vértice: clic cerca de un vértice para seleccionarlo · Arrastrar para orbitar');
-  actualizarPanelElemento();
-}
 function enviar(datos) {
   if (!conectado()) {
     aviso('Conéctate a una sala para realizar cambios compartidos.');
@@ -1291,10 +1280,6 @@ el('btn-add-cylinder').addEventListener('click',()=>crearNuevo('cilindro'));
 el('btn-duplicate').addEventListener('click',duplicarSeleccionado);
 el('btn-delete').addEventListener('click',eliminarSeleccionado);
 el('btn-join-room').addEventListener('click',conectar);
-el('selection-mode').addEventListener('change',cambiarModoSeleccion);
-el('btn-element-lock').addEventListener('click',solicitarBloqueoElemento);
-el('btn-apply-geometry').addEventListener('click',aplicarDesplazamientoElemento);
-for (const id of ['element-dx','element-dy','element-dz']) el(id).addEventListener('input',actualizarEtiquetasDesplazamiento);
 el('btn-logout').addEventListener('click',cerrarSesion);
 el('auth-form').addEventListener('submit',event=>{event.preventDefault();autenticar('login');});
 el('btn-register').addEventListener('click',()=>autenticar('register'));
