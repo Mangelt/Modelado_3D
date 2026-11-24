@@ -3,7 +3,9 @@
   "version": "2.8.0",
   "private": true,
   "description": "Editor 3D colaborativo en tiempo real (Web, Escritorio y Móvil)",
+  "main": "server/server.js",
   "scripts": {
+    "start": "node server/server.js",
     "client:dev": "python3 -m http.server 5500 --directory client",
     "server:start": "npm --prefix server start",
     "server:test": "npm --prefix server test",
@@ -12,6 +14,8 @@
     "cap:open:android": "cap open android"
   },
   "dependencies": {
+    "mongoose": "^9.12.0",
+    "ws": "^8.22.2",
     "@capacitor/android": "^6.2.0",
     "@capacitor/cli": "^6.2.0",
     "@capacitor/core": "^6.2.0"
