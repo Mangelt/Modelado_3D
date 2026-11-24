@@ -120,7 +120,7 @@ function responderJSON(res, status, body, corsHeaders = {}) {
 function esOrigenPermitido(origin) {
   if (!origin) return true;
   if (allowedOrigins.has('*') || allowedOrigins.has(origin)) return true;
-  if (origin === 'capacitor://localhost' || origin === 'ionic://localhost' || origin === 'http://localhost' || /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+  if (origin === 'capacitor://localhost' || origin === 'ionic://localhost' || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
     return true;
   }
   for (const pattern of allowedOrigins) {
@@ -308,7 +308,8 @@ async function manejarSolicitudHTTP(req, res) {
   }
 
   if (req.method === 'POST' && ['/api/register', '/api/login'].includes(parsed.pathname)) {
-    const ip = req.socket.remoteAddress || 'unknown';
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const ip = (typeof forwardedFor === 'string' && forwardedFor.split(',')[0].trim()) || req.socket.remoteAddress || 'unknown';
     if (excedeLimiteAuth(ip)) {
       return responderJSON(res, 429, { error: 'Demasiados intentos. Espera 15 minutos e inténtalo de nuevo.' }, corsHeaders || {});
     }

@@ -31,9 +31,12 @@ let cursorHistorial = 0;
 let ultimaSecuenciaEvento = 0;
 let accionHistorialPendiente = false;
 
+const DEFAULT_CLOUD_BACKEND_URL = 'https://modelado3d-production.up.railway.app';
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 const IDS_CONTROLES = ['pos-x','pos-y','pos-z','rot-x','rot-y','rot-z','scale-x','scale-y','scale-z','obj-color'];
+const punterosCanvas = new Set();
+let pointerInicioCanvas = null;
 
 function el(id) { return document.getElementById(id); }
 function conectado() { return socket && socket.readyState === WebSocket.OPEN; }
@@ -432,21 +435,21 @@ function validarIdentidad() {
   return true;
 }
 
-function obtenerConfigServidor() {
-  return (localStorage.getItem('editor3d_backend_url') || '').trim().replace(/\/+$/, '');
+function esEntornoNativoMovil() {
+  if (window.Capacitor?.isNativePlatform?.()) return true;
+  if (location.protocol === 'capacitor:' || location.protocol === 'file:') return true;
+  return location.protocol === 'https:' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1') && !location.port;
 }
 
-function guardarConfigServidor(url) {
-  const limpia = (url || '').trim().replace(/\/+$/, '');
-  if (limpia) localStorage.setItem('editor3d_backend_url', limpia);
-  else localStorage.removeItem('editor3d_backend_url');
+function esDespliegueEstatico() {
+  return location.hostname.endsWith('.vercel.app') ||
+    location.hostname.endsWith('.web.app') ||
+    location.hostname.endsWith('.firebaseapp.com');
 }
 
 function apiBase() {
-  const custom = obtenerConfigServidor();
-  if (custom) return custom;
-  if (location.protocol === 'capacitor:' || location.protocol === 'file:') {
-    return 'http://10.0.2.2:8080';
+  if (esEntornoNativoMovil() || esDespliegueEstatico()) {
+    return DEFAULT_CLOUD_BACKEND_URL;
   }
   const protocolo = location.protocol === 'https:' ? 'https:' : 'http:';
   // Desarrollo local con python -m http.server en 5500: API directa en 8080.
@@ -467,17 +470,20 @@ async function solicitarAPI(ruta, metodo = 'GET', datos = null) {
       body: datos ? JSON.stringify(datos) : undefined
     });
   } catch (err) {
-    throw new Error(`No se pudo conectar al servidor en ${apiBase()}. Verifica que el backend esté encendido.`);
+    throw Object.assign(
+      new Error(`No se pudo conectar al servidor en ${apiBase()}. Verifica tu conexión o que el backend esté activo.`),
+      { esRed: true }
+    );
   }
   let resultado;
   try { resultado = await respuesta.json(); }
   catch {
     if (respuesta.status === 404) {
-      throw new Error(`Ruta ${ruta} no encontrada en ${apiBase()}. Configura la URL de tu backend en el campo de abajo.`);
+      throw Object.assign(new Error(`Ruta ${ruta} no encontrada en ${apiBase()}.`), { status: 404 });
     }
-    throw new Error('El servidor devolvió una respuesta no válida.');
+    throw Object.assign(new Error('El servidor devolvió una respuesta no válida.'), { status: respuesta.status });
   }
-  if (!respuesta.ok) throw new Error(resultado.error || `Error HTTP ${respuesta.status}.`);
+  if (!respuesta.ok) throw Object.assign(new Error(resultado.error || `Error HTTP ${respuesta.status}.`), { status: respuesta.status });
   return resultado;
 }
 
@@ -667,10 +673,18 @@ async function restaurarSesion() {
     ocultarAcceso();
     conectar();
   } catch (err) {
-    authToken = '';
-    usuarioAutenticado = null;
-    localStorage.removeItem('editor3d_token');
-    mostrarAcceso(err instanceof TypeError ? 'No se pudo contactar al servidor. Comprueba que Node.js siga ejecutándose.' : 'Tu sesión venció o dejó de ser válida. Inicia sesión nuevamente.');
+    if (err.esRed) {
+      mostrarAcceso(err.message);
+      return;
+    }
+    if (err.status === 401 || err.status === 403) {
+      authToken = '';
+      usuarioAutenticado = null;
+      localStorage.removeItem('editor3d_token');
+      mostrarAcceso('Tu sesión venció o dejó de ser válida. Inicia sesión nuevamente.');
+      return;
+    }
+    mostrarAcceso(err.message || 'No se pudo validar la sesión.');
   }
 }
 
@@ -692,7 +706,14 @@ async function cerrarSesion() {
   el('txt-username').value = 'Sin sesión';
   bloqueadoPorMi = false;
   bloqueoSolicitado = false;
+  pilaDeshacer = [];
+  pilaRehacer = [];
+  cursorHistorial = 0;
+  ultimaSecuenciaEvento = 0;
+  accionHistorialPendiente = false;
+  actualizarControlesDeshacerRehacer();
   limpiarSeleccionElemento(false);
+  cerrarPanelesMoviles();
   mostrarAcceso('Sesión cerrada. Puedes iniciar sesión con otra cuenta.');
   setEstadoConexion('Desconectado', '#ff7777');
   el('btn-join-room').textContent = 'Conectar';
@@ -715,8 +736,11 @@ function init3D() {
   const luz = new THREE.DirectionalLight(0xffffff, 0.65);
   luz.position.set(8, 14, 10);
   escena.add(luz);
-  canvas.addEventListener('pointerdown', seleccionarDesdeCanvas);
+  canvas.addEventListener('pointerdown', iniciarPunteroCanvas);
+  canvas.addEventListener('pointerup', finalizarPunteroCanvas);
+  canvas.addEventListener('pointercancel', cancelarPunteroCanvas);
   window.addEventListener('resize', ajustarRenderizador);
+  window.addEventListener('orientationchange', () => setTimeout(ajustarRenderizador, 150));
   window.addEventListener('keydown', atajoTeclado);
   ajustarRenderizador();
   animar();
@@ -892,8 +916,9 @@ function actualizarPropiedades(obj) {
     'scale-x':d.sx,'scale-y':d.sy,'scale-z':d.sz,'obj-color':d.color
   })) el(id).value = value;
   actualizarEtiquetas();
-  el('lbl-status').textContent = bloqueadoPorMi ? 'Bloqueado por ti' : 'Libre';
-  el('lbl-status').style.background = bloqueadoPorMi ? '#237a45' : '#555';
+  const ocupadoOtro = !bloqueadoPorMi && el('lock-owner').textContent.startsWith('Editando:');
+  el('lbl-status').textContent = bloqueadoPorMi ? 'Bloqueado por ti' : (ocupadoOtro ? 'En uso' : 'Libre');
+  el('lbl-status').style.background = bloqueadoPorMi ? '#237a45' : (ocupadoOtro ? '#a66b20' : '#555');
 }
 function actualizarEtiquetas() {
   IDS_CONTROLES.filter(id => id !== 'obj-color').forEach(id => {
@@ -910,6 +935,26 @@ function seleccionarObjeto(id) {
   obj.material.emissive.setHex(0x202020);
   bloqueadoPorMi = false; bloqueoSolicitado = false; cambioPendiente = false;
   actualizarPropiedades(obj); actualizarOutliner();
+}
+function iniciarPunteroCanvas(event) {
+  punterosCanvas.add(event.pointerId);
+  if (punterosCanvas.size > 1 || (event.pointerType === 'mouse' && event.button !== 0)) {
+    pointerInicioCanvas = null;
+    return;
+  }
+  pointerInicioCanvas = { id: event.pointerId, x: event.clientX, y: event.clientY };
+}
+function cancelarPunteroCanvas(event) {
+  punterosCanvas.delete(event.pointerId);
+  if (pointerInicioCanvas?.id === event.pointerId) pointerInicioCanvas = null;
+}
+function finalizarPunteroCanvas(event) {
+  punterosCanvas.delete(event.pointerId);
+  const inicio = pointerInicioCanvas;
+  if (!inicio || inicio.id !== event.pointerId) return;
+  pointerInicioCanvas = null;
+  if (Math.hypot(event.clientX - inicio.x, event.clientY - inicio.y) >= 6) return;
+  seleccionarDesdeCanvas(event);
 }
 function seleccionarDesdeCanvas(event) {
   const rect = renderizador.domElement.getBoundingClientRect();
@@ -963,17 +1008,23 @@ function liberarBloqueo() {
   }
   bloqueadoPorMi = false; bloqueoSolicitado = false;
 }
+function generarIdCorto() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID().slice(0, 8);
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
 function crearNuevo(tipo) {
   if (!conectado()) return aviso('Conéctate a una sala antes de crear objetos.');
   if (objetos3D.size >= 200) return aviso('Límite de 200 objetos por sala alcanzado.');
-  const id = `${tipo}_${crypto.randomUUID().slice(0,8)}`;
+  const id = `${tipo}_${generarIdCorto()}`;
   enviar({tipo:'CREAR_CUBO',id,datos:datosPorDefecto(tipo)});
 }
 function duplicarSeleccionado() {
   if (!objetoSeleccionado || !conectado()) return;
   if (objetos3D.size >= 200) return aviso('Límite de 200 objetos por sala alcanzado.');
   const d = datosObjeto(objetoSeleccionado); d.x = Math.min(20,d.x+1.2);
-  const id = `copia_${crypto.randomUUID().slice(0,8)}`;
+  const id = `copia_${generarIdCorto()}`;
   enviar({tipo:'DUPLICAR_CUBO',id,datos:d});
 }
 function eliminarSeleccionado() {
@@ -982,16 +1033,10 @@ function eliminarSeleccionado() {
   enviar({tipo:'ELIMINAR_CUBO',id:objetoSeleccionado.name});
 }
 function wsEndpoint() {
-  const custom = obtenerConfigServidor();
-  if (custom) {
-    const wsProto = custom.startsWith('https:') ? 'wss:' : 'ws:';
-    const hostPart = custom.replace(/^https?:\/\//i, '');
-    return `${wsProto}//${hostPart}/ws`;
+  if (esEntornoNativoMovil() || esDespliegueEstatico()) {
+    return `${DEFAULT_CLOUD_BACKEND_URL.replace(/^http/i, 'ws')}/ws`;
   }
   const protocolo = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  if (location.protocol === 'capacitor:' || location.protocol === 'file:') {
-    return 'ws://10.0.2.2:8080/ws';
-  }
   const host = location.hostname || '127.0.0.1';
   return location.port === '5500'
     ? `${protocolo}//${host}:8080`
@@ -1055,6 +1100,7 @@ function procesarMensaje(msg) {
     case 'BLOQUEO_DENEGADO':
       if (objetoSeleccionado?.name === msg.idComponente) {
         bloqueadoPorMi = false; bloqueoSolicitado = false; cambioPendiente = false;
+        actualizarPropiedades(objetoSeleccionado);
         el('lbl-status').textContent = 'En uso'; el('lbl-status').style.background = '#a66b20';
         el('lock-owner').textContent = `Editando: ${msg.usuario || 'otro usuario'}`;
         aviso(`El objeto está bloqueado por ${msg.usuario || 'otro usuario'}.`);
@@ -1206,9 +1252,10 @@ function exportarModelo() {
   const modelos = {};
   for (const [id,obj] of objetos3D) modelos[id]=datosObjeto(obj);
   const blob = new Blob([JSON.stringify({version:1,exportadoEn:new Date().toISOString(),modelos},null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download=`modelo-3d-${salaActual() || 'sala'}.json`; a.click();
-  URL.revokeObjectURL(a.href);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `modelo-3d-${salaActual() || 'sala'}.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
   aviso('Modelo exportado en formato JSON.');
 }
 async function importarModelo(file) {
@@ -1226,7 +1273,8 @@ async function importarModelo(file) {
   } catch(err) { aviso(`No se pudo importar: ${err.message}`); }
 }
 function atajoTeclado(e) {
-  if (['INPUT','TEXTAREA'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable) return;
+  if (el('auth-overlay')?.style.display !== 'none' || el('history-dialog')?.open) return;
+  if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName) || document.activeElement.isContentEditable) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); ejecutarDeshacerRehacer('deshacer'); return; }
   if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); ejecutarDeshacerRehacer('rehacer'); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); eliminarSeleccionado(); }
@@ -1279,18 +1327,12 @@ function cerrarPanelesMoviles() {
   el('sidebar-backdrop')?.classList.remove('active');
 }
 
-function inicializarControlesMovilesYServidor() {
+function inicializarControlesMoviles() {
   const btnToggleLeft = el('btn-toggle-left');
   const btnToggleRight = el('btn-toggle-right');
   const btnCloseLeft = el('btn-close-sidebar-left');
   const btnCloseRight = el('btn-close-sidebar-right');
   const backdrop = el('sidebar-backdrop');
-  const cfgInputAuth = el('cfg-server-url');
-  const btnServerCfg = el('btn-server-config');
-  const serverDialog = el('server-config-dialog');
-  const dialogServerUrl = el('dialog-server-url');
-  const btnServerSave = el('btn-server-save');
-  const btnServerCancel = el('btn-server-cancel');
 
   btnToggleLeft?.addEventListener('click', () => {
     const abierto = el('sidebar-left')?.classList.toggle('mobile-open');
@@ -1311,34 +1353,6 @@ function inicializarControlesMovilesYServidor() {
   backdrop?.addEventListener('click', cerrarPanelesMoviles);
 
   el('canvas3d')?.addEventListener('pointerdown', cerrarPanelesMoviles);
-
-  const cfgActual = obtenerConfigServidor();
-  if (cfgInputAuth) {
-    cfgInputAuth.value = cfgActual;
-    cfgInputAuth.addEventListener('change', e => {
-      guardarConfigServidor(e.target.value);
-      aviso('Servidor guardado.');
-    });
-  }
-
-  btnServerCfg?.addEventListener('click', () => {
-    if (dialogServerUrl) dialogServerUrl.value = obtenerConfigServidor();
-    serverDialog?.showModal();
-  });
-
-  btnServerSave?.addEventListener('click', () => {
-    if (dialogServerUrl) {
-      guardarConfigServidor(dialogServerUrl.value);
-      if (cfgInputAuth) cfgInputAuth.value = dialogServerUrl.value.trim();
-      aviso('Servidor actualizado. Reconectando...');
-      serverDialog?.close();
-      if (usuarioAutenticado) conectar();
-    }
-  });
-
-  btnServerCancel?.addEventListener('click', () => {
-    serverDialog?.close();
-  });
 }
 
 window.addEventListener('beforeunload',liberarBloqueo);
@@ -1346,5 +1360,5 @@ window.addEventListener('load',()=>{
   init3D();
   actualizarPanelElemento();
   restaurarSesion();
-  inicializarControlesMovilesYServidor();
+  inicializarControlesMoviles();
 });
