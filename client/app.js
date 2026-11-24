@@ -459,14 +459,24 @@ async function solicitarAPI(ruta, metodo = 'GET', datos = null) {
   const headers = {};
   if (datos) headers['Content-Type'] = 'application/json';
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
-  const respuesta = await fetch(`${apiBase()}${ruta}`, {
-    method: metodo,
-    headers,
-    body: datos ? JSON.stringify(datos) : undefined
-  });
+  let respuesta;
+  try {
+    respuesta = await fetch(`${apiBase()}${ruta}`, {
+      method: metodo,
+      headers,
+      body: datos ? JSON.stringify(datos) : undefined
+    });
+  } catch (err) {
+    throw new Error(`No se pudo conectar al servidor en ${apiBase()}. Verifica que el backend esté encendido.`);
+  }
   let resultado;
   try { resultado = await respuesta.json(); }
-  catch { throw new Error('El servidor devolvió una respuesta no válida.'); }
+  catch {
+    if (respuesta.status === 404) {
+      throw new Error(`Ruta ${ruta} no encontrada en ${apiBase()}. Configura la URL de tu backend en el campo de abajo.`);
+    }
+    throw new Error('El servidor devolvió una respuesta no válida.');
+  }
   if (!respuesta.ok) throw new Error(resultado.error || `Error HTTP ${respuesta.status}.`);
   return resultado;
 }
